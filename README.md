@@ -30,7 +30,7 @@ timing and is easily fooled by basslines. kick-sync runs outside your visual sof
 Needs Python 3.9 or newer.
 
 ```bash
-pip install git+https://github.com/luiscamposnyc/kick-sync
+pip install git+https://github.com/djluiscampos-avbuilds/kick-sync
 ```
 
 ## Use
