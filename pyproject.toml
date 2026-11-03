@@ -1,0 +1,20 @@
+[build-system]
+requires = ["setuptools>=61"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "kick-sync"
+version = "1.0.0"
+description = "Live beat sync from the kick drum for visuals: listens to your DJ audio, sends every beat over OSC (TouchDesigner, Resolume, Max, ...)."
+readme = "README.md"
+license = { text = "MIT" }
+authors = [{ name = "DJ Luis Campos" }]
+requires-python = ">=3.9"
+dependencies = ["numpy", "sounddevice", "python-osc"]
+keywords = ["beat tracking", "dj", "vj", "touchdesigner", "osc", "kick", "bpm", "live visuals"]
+
+[project.scripts]
+kick-sync = "kick_sync.cli:main"
+
+[tool.setuptools]
+packages = ["kick_sync"]
