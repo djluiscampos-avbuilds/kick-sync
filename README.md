@@ -19,9 +19,9 @@ timing and is easily fooled by basslines. kick-sync runs outside your visual sof
   land 2-6 ms from the kick at every tempo.
 - **Starts and stops with the music.** Press play after silence and the first beat fires on the first kick; stop and
   the beats stop within 0.15 s.
-- **Holds through breakdowns**, and relocks on its own when a new track comes in (only on strong evidence, so a
-  mix that's slightly off or a stray hit can't throw it).
-- **Steady output:** beats never skip, double or jump; corrections are smoothed.
+- **Kick stops, beats stop.** In a breakdown (pads, voice, bass, hats still playing) no beats go out: a beat is sent
+  only when the kick was really there on the beat before. Kick back on the same grid: the first kick flashes the
+  moment it's heard. A new track somewhere else or at another tempo: the right position and tempo within 2-3 kicks.
 - **Latency compensation:** beats are sent early by an adjustable "lead", so the flash lands when you *hear* the kick.
 - Light: about 2% of one CPU core.
 
@@ -44,8 +44,8 @@ kick-sync --device "XDJ"         # run on the input whose name contains "XDJ"
 ```
 
 Leave its window open during the set. It shows the tempo and whether it's locked. In that window (Windows):
-`]` / `[` move all beats 5 ms later / earlier until the visuals hit on the kick for your setup; the setting is
-remembered.
+`]` / `[` move all beats 5 ms later / earlier until the visuals hit on the kick for your setup (remembered), `0` puts
+that back to 60 ms, `r` forgets the grid and locks fresh on the next kicks.
 
 Options: `--host` / `--port` (OSC target, default `127.0.0.1:7400`), `--lead` (ms), `--record FILE SECONDS`
 (record your input, to test with your own music).
@@ -79,16 +79,33 @@ will load TouchDesigner's libraries and crash.
 ## Tests
 
 ```bash
-python tests/synth_test.py              # test tracks with known kick times at 80-200 BPM: phase jump, breakdown, tempo change
-python tests/chain_test.py my_set.wav   # your own recording through the whole live chain: first beats after each start, beats after each stop
+python tests/scenario_test.py           # test tracks with known kick times at 120-200 BPM: kick, breakdowns, returns on/off the grid, tempo change
+python tests/chain_test.py my_set.wav   # your own recording through the whole live chain (add --pauses to simulate audio dropouts)
 ```
 
 ## Limits
 
 - Built for music with a kick on (most) beats: house, techno, trance, psytrance, hardstyle, DnB rollers. Very
   syncopated breakbeats follow the kick pattern's steady pulse, not every hit.
-- A very deep offbeat bassline through a breakdown at ~200 BPM can occasionally end up half a beat off until the kick
-  returns.
+- Not perfect. On recent real sessions (124-128 BPM, many stops) 98-99% of kicks get their beat, with no beats off
+  the kick; on older, denser recordings (up to 195 BPM) 90-97%. The first kick after a stop gets its beat most of the
+  time (41 of 43 in one session), sent the moment it's heard (so ~60 ms late on screen); otherwise from the next kick.
+- A kick that comes back somewhere new (a track cued in another position) gets its beat from kick 3. Stray sounds
+  just before a track starts, kicks faded in very quietly, and scrubbing a track can delay the first beats.
+- Audio lost between the player and the computer is put back (see below), but long stretches of lost audio can still
+  cost a few beats.
+
+## What's new
+
+**1.1.0**
+- Kick-only rule: beats stop when the kick stops (1.0 kept beating through breakdowns) and come back with it.
+- First kick after a break flashes at once; one guess per break, so other hits can't keep firing.
+- After a break, a new tempo is only taken when a third kick confirms it (one early kick no longer throws the grid).
+- A kick that drifts off the grid, or a clearly stronger kick pulse just after a return, pulls the grid onto it.
+- Lost audio is put back: some USB players / Windows drop 15-40 ms chunks of audio without reporting it, which made
+  the music seem to jump and run fast (beats skipping mid-track). Bigger input buffer as well.
+- Two kicks almost a second apart at a track start lock at the double tempo (one kick missed), not at half speed.
+- Clock recovers within 3 s after an audio dropout. New keys: `0` lead back to 60 ms, `r` resync now.
 
 ## License
 

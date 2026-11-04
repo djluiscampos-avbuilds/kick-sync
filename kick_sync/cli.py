@@ -6,7 +6,8 @@
 #   kick-sync --device "XDJ"               run on the input whose name contains "XDJ" (default: system default input)
 #   kick-sync --record mytrack.wav 60      record 60 s from the input (to test with tests/chain_test.py)
 #
-# Keys in its window (Windows):  [ / ]  = beats 5 ms earlier / later    q = quit.  The lead is remembered.
+# Keys in its window (Windows):  [ / ] = beats 5 ms earlier / later   0 = lead back to 60 ms   r = resync now   q = quit
+# The lead is remembered.
 # OSC (default 127.0.0.1:7400):
 #   /beat   int n, float bpm, float t     at each beat (n counts beats; t = sender clock, for measuring delays)
 #   /state  float bpm, int locked         4 times a second (lets the receiver know the program is alive)
@@ -15,7 +16,7 @@ import numpy as np
 import sounddevice as sd
 from pythonosc.udp_client import SimpleUDPClient
 from .tracker import KickTracker
-from .sender import Sender
+from .sender import Sender, ClockSync, GapFill
 
 HOME = os.path.join(os.path.expanduser('~'), '.kick-sync')
 LEAD_FILE = os.path.join(HOME, 'lead_ms.txt')
@@ -72,7 +73,9 @@ def run(args):
 	tr = KickTracker(sr)
 	osc = SimpleUDPClient(args.host, args.port)
 	blocks = queue.Queue()
-	clock = {'off': None}           # wall clock minus audio time; the smallest seen = least buffering
+	clock = {'off': None}           # wall clock minus audio time (ClockSync: least-buffered value of the last 3 s)
+	sync = ClockSync()
+	gap = GapFill(sr)               # puts back audio lost on the way in (USB / Windows audio engine)
 	state = {'lead': lead}
 
 	def callback(indata, frames, t, status):
@@ -101,15 +104,19 @@ def run(args):
 	if sys.platform == 'win32':
 		import msvcrt as keys
 	print(f'kick-sync on "{sd.query_devices(dev)["name"]}" {sr} Hz -> OSC {args.host}:{args.port}, lead {lead:.0f} ms'
-	      + ('  ([ ] adjust, q quit)' if keys else ''))
+	      + ('  ([ ] adjust, 0 reset lead, r resync, q quit)' if keys else ''))
 	last_state = 0.0
-	with sd.InputStream(device=dev, samplerate=sr, channels=2, dtype='float32', blocksize=256, callback=callback):
+	# latency='high': a bigger buffer, so a busy moment doesn't lose audio (beats don't come later: ClockSync measures it)
+	with sd.InputStream(device=dev, samplerate=sr, channels=2, dtype='float32', blocksize=256, latency='high', callback=callback):
 		while True:
 			arrived, b = blocks.get()
+			fill = gap.check(arrived, tr.t + len(b) / sr, sync)
+			if fill is not None:                           # audio was lost: put that much back first
+				tr.feed(fill)
 			tr.feed(b)
+			gap.push(b)
 			tr.kerr.clear()
-			off = arrived - tr.t
-			clock['off'] = off if clock['off'] is None else min(clock['off'] + 1e-6, off)   # follow drift, ignore jitter
+			clock['off'] = sync.update(arrived, tr.t)      # right again within 3 s after an audio dropout
 			now = time.perf_counter()
 			if now - last_state > 0.25:
 				last_state = now
@@ -121,6 +128,13 @@ def run(args):
 				if c in '[]':
 					state['lead'] += 5 if c == '[' else -5
 					open(LEAD_FILE, 'w').write(str(state['lead']))
+				elif c == '0':                        # lead back to the default
+					state['lead'] = 60.0
+					open(LEAD_FILE, 'w').write(str(state['lead']))
+				elif c in 'rR':                       # resync: forget the grid, lock fresh on the next kicks
+					tr.reset()
+					tr.armed = True
+					print(chr(10) + 'resync - locking on the next kicks')
 				elif c == 'q':
 					return
 
