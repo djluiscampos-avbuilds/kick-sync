@@ -43,6 +43,10 @@ kick-sync --list                 # see your audio inputs
 kick-sync --device "XDJ"         # run on the input whose name contains "XDJ"
 ```
 
+Antivirus warning about `kick-sync.exe`? That file is the small launcher pip creates for every Python command
+(it is new and unsigned, so some antivirus programs flag it). You can skip it and run the same program with
+`python -m kick_sync --device "XDJ"` (any option works the same way).
+
 Leave its window open during the set. It shows the tempo and whether it's locked. In that window (Windows):
 `]` / `[` move all beats 5 ms later / earlier until the visuals hit on the kick for your setup (remembered), `0` puts
 that back to 60 ms, `r` forgets the grid and locks fresh on the next kicks.
